@@ -3,14 +3,14 @@ title: Migrate nopCommerce to Azure Cobalt 100 (Arm)
 
 minutes_to_complete: 75
 
-who_is_this_for: This learning path is for .NET and platform engineers migrating a production .NET application from x86 to Arm on Azure.
+who_is_this_for: This learning path is for .NET and platform engineers migrating a production .NET application to Arm on Azure.
 
 learning_objectives:
-    - Build a pinned nopCommerce release on both x86 and Arm with the same .NET toolchain
-    - Use a manual-first dependency workflow, then accelerate it with the Arm MCP server
+    - Build a pinned nopCommerce release and baseline on Arm with the same .NET toolchain
     - Produce an SBOM and resolve platform-specific dependency cascades
     - Containerize with Dockerfile and .NET SDK multi-arch publish workflows
     - Apply architecture-conditional runtime tuning with measured results
+    - Use the Arm MCP Server to automate endpoint selection, test generation, and optimization planning
 
 prerequisites:
     - Azure account with permissions to create VMs
@@ -59,12 +59,11 @@ layout: "learningpathall"       # All files under learning paths have this same 
 learning_path_main_page: "yes"  # This should be surfaced when looking for related content. Only set for _index.md of learning path content.
 ---
 
-This path uses a consistent pattern in every module:
+# Migrate nopCommerce to Azure Cobalt 100 (Arm)
 
-1. Do it manually so the workflow is clear.
-2. Use the Arm MCP server as an optional accelerator.
+This learning path shows a practical, evidence-first workflow for migrating nopCommerce to Arm on Azure. You will establish a clean baseline, audit dependency risk, apply targeted changes, and validate outcomes with repeatable tests before making performance claims.
 
-All commands and results were validated on 2026-02-25 with nopCommerce `release-4.90.3` (`9beda11c42`) and .NET SDK `9.0.114`.
+All commands in this path were validated with nopCommerce `release-4.90.3` (`9beda11c42`) and .NET SDK `9.0.114`.
 
 ## Why this matters
 
@@ -75,9 +74,9 @@ All commands and results were validated on 2026-02-25 with nopCommerce `release-
 
 ## What you will do
 
-1. Set up comparable x86 and Arm environments on Azure.
-2. Build and baseline with a workload that goes beyond `/install`.
+1. Set up an Arm Cobalt environment on Azure.
+2. Build and baseline on Arm with a workload that goes beyond `/install`.
 3. Audit direct and transitive dependencies with an SBOM-first approach.
-4. Apply a reusable 4-option decision framework to platform-specific dependencies.
-5. Containerize with Dockerfile and .NET SDK multi-arch techniques.
-6. Deploy on Cobalt, validate functionality, and tune with architecture-aware settings.
+4. Containerize with Dockerfile and .NET SDK multi-arch techniques.
+5. Tune and validate runtime settings with reproducible methodology on Azure Cobalt.
+6. Use the Arm MCP Server to accelerate endpoint selection, test generation, and optimization planning.

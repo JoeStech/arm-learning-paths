@@ -6,11 +6,13 @@ weight: 4
 layout: learningpathall
 ---
 
-Use a manual-first audit, then use the Arm MCP server to accelerate checks.
+# Audit dependencies
 
-## Manual workflow (required)
+Run dependency discovery before migration changes so you understand direct references, transitive risk, and hidden native payloads. This avoids late surprises when deploying to Arm.
 
 ### 1. Map direct references
+
+Start with project-level references to see what your app explicitly depends on.
 
 ```bash
 rg -n "<PackageReference|<ProjectReference" src
@@ -18,11 +20,15 @@ rg -n "<PackageReference|<ProjectReference" src
 
 ### 2. List transitive dependencies
 
+Enumerate the full dependency graph; transitive packages often carry architecture-sensitive constraints.
+
 ```bash
 dotnet list src/Presentation/Nop.Web/Nop.Web.csproj package --include-transitive
 ```
 
-### 3. Generate an SBOM (required)
+### 3. Generate an SBOM
+
+Generate an SBOM so you can track all components, versions, and exposure surface as a first-class migration artifact. While not strictly necessary for migration purposes, this is a best practice that will save your team time down the road. You can also give this SBOM to an LLM to extract insights about your codebase for you.
 
 ```bash
 dotnet tool install --global CycloneDX
@@ -32,6 +38,8 @@ dotnet CycloneDX src/Presentation/Nop.Web/Nop.Web.csproj -o sbom/
 If tool installation is blocked, treat `dotnet list --include-transitive` plus `*.deps.json` evidence as a temporary fallback, not the final state.
 
 ### 4. Inspect package internals for native payloads
+
+Inspect package contents directly to find architecture-specific native binaries.
 
 ```bash
 mkdir -p /tmp/nupkg-audit
@@ -50,14 +58,4 @@ Treat dependencies as a chain, not isolated items:
 - Library A depends on library B
 - Library B is architecture-sensitive
 
-You must resolve B first, then validate A, then validate the app. In nopCommerce, `iTextSharp` and `System.Drawing` are an example of this chain.
-
-## Arm MCP accelerator (optional)
-
-After manual evidence is collected, use MCP tools to speed repetitive checks:
-
-- `knowledge_base_search` for package compatibility
-- `skopeo` or `check_image` for container image architecture coverage
-- `migrate_ease_scan` where scanner support exists
-
-Keep manual outputs as the source of truth. Use MCP to prioritize and scale, not to skip evidence.
+You must resolve B first, then validate A, then validate the app.

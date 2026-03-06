@@ -6,25 +6,17 @@ weight: 2
 layout: learningpathall
 ---
 
-Create two VMs in the same Azure region with matching OS and tooling so differences are attributable to architecture, not configuration drift.
+# Environment setup
 
-This path was validated with Ubuntu 24.04 LTS VMs in `westus2`:
+Set up an Arm Cobalt environment first, then keep your toolchain and runtime configuration stable across all test runs. This creates a reliable Arm baseline for migration and tuning work.
 
-| | x86 | Arm |
-|---|---|---|
-| **VM size** | Standard_D2s_v6 | Standard_D2ps_v6 |
-| **vCPUs** | 2 | 2 |
+Start with the official [Azure Cobalt setup guide](https://learn.arm.com/learning-paths/servers-and-cloud-computing/cobalt/) and complete VM provisioning there first.
 
-## Log in and create VMs
+This path was validated with Ubuntu 24.04 LTS on Azure Cobalt in `westus2` (example VM size: `Standard_D2ps_v6`, 2 vCPUs).
 
-```bash
-az login --use-device-code
-az account set --subscription <your-subscription>
-```
+## Install tools on Cobalt VM
 
-Create both VMs in the same resource group and region.
-
-## Install tools on each VM
+Install the toolchain on the Cobalt VM before building and testing.
 
 ```bash
 sudo apt-get update -y
@@ -38,37 +30,31 @@ sudo apt-get install -y dotnet-sdk-9.0
 
 Verify:
 
+Confirm architecture and tool versions before proceeding.
+
 ```bash
 uname -m
 dotnet --version
 docker --version
 ```
 
-Expected output: `x86_64` on the x86 VM, `aarch64` on the Arm VM. Both should report the same .NET SDK version (9.0.x).
+Expected output: `Arm` (kernel strings may still show architecture-specific values). Ensure the .NET SDK version is 9.0.x.
 
 ## PostgreSQL prerequisite for nopCommerce install
 
-nopCommerce migrations on PostgreSQL require the `citext` extension. Create it before running the installer:
+nopCommerce defaults to SQL Server, but this learning path uses PostgreSQL for Arm validation. For PostgreSQL installs, `citext` is required before migration/installation. Without it, installer migrations fail with `type "citext" does not exist` (captured in local test artifacts).
+
+Create PostgreSQL and enable `citext` before running the installer:
 
 ```bash
+# Start PostgreSQL for local validation.
 docker run -d --name nop-postgres \
   -e POSTGRES_USER=nop \
   -e POSTGRES_PASSWORD=<password> \
   -e POSTGRES_DB=nopcommerce \
   -p 5432:5432 postgres:16
 
+# Enable the extension required by nopCommerce migrations.
 docker exec nop-postgres psql -U nop -d nopcommerce \
   -c "CREATE EXTENSION IF NOT EXISTS citext;"
 ```
-
-## Optional: script-driven remote execution
-
-```bash
-az vm run-command invoke \
-  -g <resource-group> \
-  -n <vm-name> \
-  --command-id RunShellScript \
-  --scripts @./your-test-script.sh
-```
-
-This was used to run identical commands on both VMs.

@@ -6,9 +6,13 @@ weight: 3
 layout: learningpathall
 ---
 
-Pin nopCommerce to a reproducible release, build on both architectures, and capture a baseline that includes core storefront paths.
+# Build and baseline
+
+Create a reproducible Arm baseline before optimization work. This page pins source, verifies a clean build, and captures a representative endpoint baseline so later changes can be measured against a known control.
 
 ## Clone and pin the source
+
+Pinning the exact tag and commit avoids silent drift in dependencies and behavior.
 
 ```bash
 git clone https://github.com/nopSolutions/nopCommerce.git
@@ -18,74 +22,73 @@ git checkout release-4.90.3
 git rev-parse --short=10 HEAD   # expect 9beda11c42
 ```
 
-## Restore and build
+## Restore and build on Arm
+
+Run on the Arm VM to establish a native Arm baseline.
 
 ```bash
+# Restore dependencies first so build failures are easier to triage.
 dotnet restore src/Presentation/Nop.Web/Nop.Web.csproj
+
+# Build release binaries without re-restoring packages.
 dotnet build src/Presentation/Nop.Web/Nop.Web.csproj -c Release --no-restore
 ```
 
-## Start the application
+## Start and install nopCommerce
+
+Start the app locally and complete installer setup with PostgreSQL.
 
 ```bash
 cd src/Presentation/Nop.Web
 dotnet run -c Release --no-build --urls http://0.0.0.0:5000
 ```
 
-## Baseline methodology
-
-Do not rely on `/install` alone. Baseline at least:
-
-- Home page
-- Search
-- Product page
-- Cart
-- Checkout
-
-Prerequisite: complete nopCommerce setup first (database configured and installer finished). Otherwise, storefront paths redirect to the install flow and do not represent real behavior.
-
-Use a valid product URL from your seeded catalog (for example, `/apple-macbook-pro`), not a hard-coded slug that may not exist in your dataset.
-
-Quick smoke probe (pre-install, useful as a connectivity check only):
+Complete installation with PostgreSQL (`citext` enabled), then verify:
 
 ```bash
-for p in / \
-         '/search?q=book' \
-         '/apple-macbook-pro' \
-         '/cart' \
-         '/checkout'; do
-  echo "== $p =="
-  for i in $(seq 1 20); do
-    curl -sS -o /dev/null -w '%{time_total}\n' "http://127.0.0.1:5000$p"
-  done
-done
+# Root should return storefront content.
+curl -s -o /dev/null -w 'root=%{http_code}\n' http://127.0.0.1:5000/
+
+# Install route should redirect once installation is complete.
+curl -s -o /dev/null -w 'install=%{http_code}\n' http://127.0.0.1:5000/install
 ```
 
-Before installation is complete, all storefront paths redirect to setup (`302`). Those numbers confirm reachability but are not valid performance baselines.
+Expected after successful install: `root=200`, `install=302`.
 
-## Installed-store endpoint baseline (validated)
+## Baseline methodology
 
-After fixing PostgreSQL setup (`citext`) and completing installation on both machines, the same endpoint benchmark was executed with `wrk` (`-t2 -c32 -d20s`) across this set:
+Do not benchmark `/install`. Baseline real storefront paths:
 
 - `/`
-- `/search?q=book`
-- `/electronics`
-- `/apple-macbook-pro`
-- `/cart`
-- `/checkout`
+- `/search/`
+- `/catalog/searchtermautocomplete`
+- `/product/search`
+- `/category/products/`
+- `/addproducttocart/catalog/...`
+- `/addproducttocart/details/...`
+- `/shoppingcart/productdetails_attributechange/...`
+- `/product/combinations`
+- `/cart/estimateshipping`
+- `/cart/selectshippingoption`
 
-Storefront pages returned `200`; `/checkout` returned `302` (expected without an authenticated session).
+Use the endpoint tester:
 
-Requests/second comparison:
+```bash
+# Use fixed concurrency and iterations for a repeatable starting point.
+python3 test_nopcommerce_endpoints.py \
+  --base-url http://127.0.0.1:5000 \
+  --concurrency 8 \
+  --iterations 20 \
+  --json-out arm_before.json
+```
 
-| Endpoint | x86 | Arm | Arm vs x86 |
-|---|---:|---:|---:|
-| `/apple-macbook-pro` | 35.40 | 32.28 | -8.8% |
-| `/electronics` | 99.52 | 76.07 | -23.6% |
-| `/search?q=book` | 28.18 | 27.40 | -2.8% |
+## Baseline quality rules
 
-Different endpoints show different gaps. Avoid reducing migration performance to a single number — use per-endpoint baselines to guide architecture-specific optimizations.
+Use these rules before you compare any optimization result:
 
-## Arm MCP accelerator (optional)
+- Run at least 3 baseline trials with identical parameters.
+- Keep endpoint order fixed per run (not randomized) when comparing before vs after.
+- Keep database state and seeded data identical across runs.
+- Capture raw JSON for every run and compare medians, not single outliers.
 
-Use MCP to script repeated baseline runs and summarize deltas, but keep the manual baseline commands as your ground truth.
+This baseline process becomes the control for every later tuning or code-change decision.
